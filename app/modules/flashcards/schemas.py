@@ -19,3 +19,9 @@ class FlashcardResponse(BaseModel):
 
 class FlashcardListResponse(BaseModel):
     flashcards: list[FlashcardResponse]
+
+
+class FlashcardExportRow(BaseModel):
+    front: str
+    back: str
+    tags: str

@@ -5,6 +5,7 @@ from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
 from app.modules.materials.router import router as materials_router
 from app.modules.subjects.router import router as subjects_router
+from app.modules.flashcards.router import router as flashcards_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -26,3 +27,4 @@ app.include_router(auth_router)
 app.include_router(subjects_router)
 app.include_router(materials_router)
 app.include_router(ai_router)
+app.include_router(flashcards_router)

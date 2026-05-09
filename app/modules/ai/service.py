@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.ai.provider import AIProvider
+from app.modules.flashcards.models import Flashcard
 from app.modules.materials.models import Material
 from app.modules.summaries.models import Summary
 from app.modules.users.models import User
@@ -15,11 +16,11 @@ class AIService:
         self.db = db
         self.provider = provider
 
-    async def generate_material_summary(
+    async def _get_user_material(
         self,
         current_user: User,
         material_id: uuid.UUID,
-    ) -> Summary:
+    ) -> Material:
         material = await self.db.scalar(
             select(Material).where(
                 Material.id == material_id,
@@ -39,6 +40,15 @@ class AIService:
                 detail="Material has no extracted text.",
             )
 
+        return material
+
+    async def generate_material_summary(
+        self,
+        current_user: User,
+        material_id: uuid.UUID,
+    ) -> Summary:
+        material = await self._get_user_material(current_user, material_id)
+
         ai_result = await self.provider.generate_summary(material.extracted_text)
 
         summary = Summary(
@@ -53,3 +63,32 @@ class AIService:
         await self.db.refresh(summary)
 
         return summary
+
+    async def generate_material_flashcards(
+        self,
+        current_user: User,
+        material_id: uuid.UUID,
+    ) -> list[Flashcard]:
+        material = await self._get_user_material(current_user, material_id)
+
+        ai_result = await self.provider.generate_flashcards(material.extracted_text)
+
+        flashcards = [
+            Flashcard(
+                user_id=current_user.id,
+                material_id=material.id,
+                front=item.front,
+                back=item.back,
+                tags=item.tags,
+                difficulty=item.difficulty,
+            )
+            for item in ai_result.flashcards
+        ]
+
+        self.db.add_all(flashcards)
+        await self.db.commit()
+
+        for flashcard in flashcards:
+            await self.db.refresh(flashcard)
+
+        return flashcards

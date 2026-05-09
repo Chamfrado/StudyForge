@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.core.config import settings
 from app.modules.auth.router import router as auth_router
+from app.modules.materials.router import router as materials_router
 from app.modules.subjects.router import router as subjects_router
 
 app = FastAPI(
@@ -22,3 +23,4 @@ async def health_check():
 
 app.include_router(auth_router)
 app.include_router(subjects_router)
+app.include_router(materials_router)

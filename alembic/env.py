@@ -4,7 +4,9 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from app.core.database import Base
+from app.modules.materials.models import Material  # noqa: F401
 from app.modules.subjects.models import Subject  # noqa: F401
+from app.modules.summaries.models import Summary  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
 
 config = context.config

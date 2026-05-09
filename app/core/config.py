@@ -17,6 +17,22 @@ class Settings(BaseSettings):
         default=30,
         alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
+    ai_provider: str = Field(default="mock", alias="AI_PROVIDER")
+
+    openai_compatible_api_key: str | None = Field(
+        default=None,
+        alias="OPENAI_COMPATIBLE_API_KEY",
+    )
+    
+    openai_compatible_base_url: str = Field(
+        default="https://api.groq.com/openai/v1",
+        alias="OPENAI_COMPATIBLE_BASE_URL",
+    )
+    
+    openai_compatible_model: str = Field(
+        default="openai/gpt-oss-20b",
+        alias="OPENAI_COMPATIBLE_MODEL",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

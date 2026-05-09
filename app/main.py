@@ -7,6 +7,7 @@ from app.modules.flashcards.router import router as flashcards_router
 from app.modules.materials.router import router as materials_router
 from app.modules.quizzes.router import router as quizzes_router
 from app.modules.subjects.router import router as subjects_router
+from app.modules.analytics.router import router as analytics_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -30,3 +31,4 @@ app.include_router(materials_router)
 app.include_router(ai_router)
 app.include_router(flashcards_router)
 app.include_router(quizzes_router)
+app.include_router(analytics_router)

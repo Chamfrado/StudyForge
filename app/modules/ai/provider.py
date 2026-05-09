@@ -1,5 +1,10 @@
+import json
 from abc import ABC, abstractmethod
 
+from fastapi import HTTPException, status
+from openai import AsyncOpenAI
+
+from app.core.config import settings
 from app.modules.ai.schemas import (
     AIFlashcardResult,
     AIFlashcardsResult,
@@ -116,5 +121,126 @@ class MockAIProvider(AIProvider):
         )
 
 
+class OpenAICompatibleProvider(AIProvider):
+    def __init__(self) -> None:
+        if not settings.openai_compatible_api_key:
+            raise RuntimeError("OPENAI_COMPATIBLE_API_KEY is missing.")
+
+        self.client = AsyncOpenAI(
+            api_key=settings.openai_compatible_api_key,
+            base_url=settings.openai_compatible_base_url,
+        )
+
+        self.model = settings.openai_compatible_model
+
+    async def _generate_json(self, system_prompt: str, user_prompt: str) -> dict:
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                temperature=0.2,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt,
+                    },
+                ],
+            )
+
+            content = response.choices[0].message.content
+
+            if not content:
+                raise ValueError("Empty response from AI provider.")
+
+            return json.loads(content)
+
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"AI provider error: {str(exc)}",
+            ) from exc
+
+    async def generate_summary(self, text: str) -> AISummaryResult:
+        data = await self._generate_json(
+            system_prompt=(
+                "You are an educational assistant. "
+                "Return only valid JSON. "
+                "Do not include markdown."
+            ),
+            user_prompt=(
+                "Generate a concise study summary from the text below.\n\n"
+                "Return JSON exactly in this shape:\n"
+                '{ "content": "summary text", "key_points": ["point 1", "point 2", "point 3"] }\n\n'
+                f"TEXT:\n{text[:8000]}"
+            ),
+        )
+
+        return AISummaryResult.model_validate(data)
+
+    async def generate_flashcards(self, text: str) -> AIFlashcardsResult:
+        data = await self._generate_json(
+            system_prompt=(
+                "You are an educational flashcard generator. "
+                "Return only valid JSON. "
+                "Do not include markdown."
+            ),
+            user_prompt=(
+                "Generate 5 study flashcards from the text below.\n\n"
+                "Return JSON exactly in this shape:\n"
+                "{\n"
+                '  "flashcards": [\n'
+                '    {"front": "question", "back": "answer", "tags": ["tag"], "difficulty": "EASY"}\n'
+                "  ]\n"
+                "}\n\n"
+                "Difficulty must be EASY, MEDIUM, or HARD.\n\n"
+                f"TEXT:\n{text[:8000]}"
+            ),
+        )
+
+        return AIFlashcardsResult.model_validate(data)
+
+    async def generate_quiz(self, text: str) -> AIQuizResult:
+        data = await self._generate_json(
+            system_prompt=(
+                "You are an educational quiz generator. "
+                "Return only valid JSON. "
+                "Do not include markdown."
+            ),
+            user_prompt=(
+                "Generate a multiple-choice quiz with 5 questions from the text below.\n\n"
+                "Return JSON exactly in this shape:\n"
+                "{\n"
+                '  "title": "Quiz title",\n'
+                '  "questions": [\n'
+                "    {\n"
+                '      "question": "question text",\n'
+                '      "options": ["option A", "option B", "option C", "option D"],\n'
+                '      "correct_answer": "A",\n'
+                '      "explanation": "why A is correct",\n'
+                '      "difficulty": "MEDIUM"\n'
+                "    }\n"
+                "  ]\n"
+                "}\n\n"
+                "correct_answer must be A, B, C, or D.\n"
+                "Difficulty must be EASY, MEDIUM, or HARD.\n\n"
+                f"TEXT:\n{text[:8000]}"
+            ),
+        )
+
+        return AIQuizResult.model_validate(data)
+
+
 def get_ai_provider() -> AIProvider:
-    return MockAIProvider()
+    provider = settings.ai_provider.lower().strip()
+
+    if provider == "mock":
+        return MockAIProvider()
+
+    if provider in {"groq", "openai-compatible", "openai_compatible"}:
+        return OpenAICompatibleProvider()
+
+    raise RuntimeError(f"Unknown AI_PROVIDER: {settings.ai_provider}")

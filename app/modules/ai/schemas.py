@@ -15,3 +15,16 @@ class AIFlashcardResult(BaseModel):
 
 class AIFlashcardsResult(BaseModel):
     flashcards: list[AIFlashcardResult]
+
+
+class AIQuizQuestionResult(BaseModel):
+    question: str = Field(min_length=1)
+    options: list[str] = Field(min_length=2)
+    correct_answer: str = Field(min_length=1)
+    explanation: str = Field(min_length=1)
+    difficulty: str = "MEDIUM"
+
+
+class AIQuizResult(BaseModel):
+    title: str = Field(min_length=1)
+    questions: list[AIQuizQuestionResult]

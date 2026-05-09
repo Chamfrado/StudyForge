@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.ai.provider import AIProvider
 from app.modules.flashcards.models import Flashcard
 from app.modules.materials.models import Material
+from app.modules.quizzes.models import Quiz, QuizQuestion
 from app.modules.summaries.models import Summary
 from app.modules.users.models import User
 
@@ -92,3 +93,43 @@ class AIService:
             await self.db.refresh(flashcard)
 
         return flashcards
+
+    async def generate_material_quiz(
+        self,
+        current_user: User,
+        material_id: uuid.UUID,
+    ) -> tuple[Quiz, list[QuizQuestion]]:
+        material = await self._get_user_material(current_user, material_id)
+
+        ai_result = await self.provider.generate_quiz(material.extracted_text)
+
+        quiz = Quiz(
+            user_id=current_user.id,
+            material_id=material.id,
+            title=ai_result.title,
+        )
+
+        self.db.add(quiz)
+        await self.db.flush()
+
+        questions = [
+            QuizQuestion(
+                quiz_id=quiz.id,
+                question=item.question,
+                options=item.options,
+                correct_answer=item.correct_answer,
+                explanation=item.explanation,
+                difficulty=item.difficulty,
+            )
+            for item in ai_result.questions
+        ]
+
+        self.db.add_all(questions)
+        await self.db.commit()
+
+        await self.db.refresh(quiz)
+
+        for question in questions:
+            await self.db.refresh(question)
+
+        return quiz, questions

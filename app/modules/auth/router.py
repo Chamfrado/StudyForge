@@ -32,7 +32,9 @@ async def register(
     service = AuthService(db)
     user = await service.register(data)
 
-    return RegisterResponse(user=UserResponse.model_validate(user))
+    return RegisterResponse(
+        user=UserResponse.model_validate(user, from_attributes=True)
+    )
 
 
 @router.post(
@@ -48,7 +50,7 @@ async def login(
 
     return LoginResponse(
         access_token=token,
-        user=UserResponse.model_validate(user),
+        user=UserResponse.model_validate(user, from_attributes=True),
     )
 
 
@@ -59,4 +61,6 @@ async def login(
 async def me(
     current_user: User = Depends(get_current_user),
 ):
-    return AuthUserResponse(user=UserResponse.model_validate(current_user))
+    return AuthUserResponse(
+        user=UserResponse.model_validate(current_user, from_attributes=True)
+    )

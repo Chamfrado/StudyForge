@@ -22,3 +22,15 @@ class AnalyticsOverviewResponse(BaseModel):
     average_quiz_score: float
     best_quiz_score: float
     latest_attempts: list[LatestAttemptResponse]
+
+
+class SubjectAnalyticsResponse(BaseModel):
+    subject_id: uuid.UUID
+    subject_name: str
+    total_materials: int
+    total_flashcards: int
+    total_quizzes: int
+    total_quiz_attempts: int
+    average_quiz_score: float
+    best_quiz_score: float
+    latest_attempts: list[LatestAttemptResponse]

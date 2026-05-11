@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.materials.models import Material, MaterialStatus
 from app.modules.subjects.models import Subject
 from app.modules.users.models import User
+from app.shared.text_extractor import SUPPORTED_EXTENSIONS, extract_text_from_file
 
 
-ALLOWED_EXTENSIONS = {".txt", ".md"}
+
+ALLOWED_EXTENSIONS = SUPPORTED_EXTENSIONS
 STORAGE_DIR = Path("storage/materials")
 
 
@@ -44,18 +46,15 @@ class MaterialService:
         if file_extension not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only .txt and .md files are supported.",
+                detail="Only .txt, .md, .pdf and .docx files are supported.",
             )
 
         raw_content = await file.read()
 
-        try:
-            extracted_text = raw_content.decode("utf-8")
-        except UnicodeDecodeError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be encoded in UTF-8.",
-            ) from None
+        extracted_text = extract_text_from_file(
+            filename=original_filename,
+            raw_content=raw_content,
+        )
 
         if not extracted_text.strip():
             raise HTTPException(

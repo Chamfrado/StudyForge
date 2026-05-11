@@ -11,14 +11,19 @@ import type {
   Material,
   MaterialsResponse,
   Quiz,
+  QuizAttempt,
+  QuizAttemptsResponse,
+  QuizzesResponse,
   RegisterRequest,
   RegisterResponse,
   Subject,
   SubjectsResponse,
+  SubmitQuizAttemptRequest,
   Summary,
   UpdateSubjectRequest,
   UploadMaterialRequest,
 } from "@/lib/types";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 type RequestOptions = RequestInit & {
@@ -309,5 +314,44 @@ export const api = {
     }
 
     return response.blob();
+  },
+
+  getQuizzes: async () => {
+    return http<QuizzesResponse>("/quizzes", {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  getQuiz: async (quizId: string) => {
+    return http<Quiz>(`/quizzes/${quizId}`, {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  deleteQuiz: async (quizId: string) => {
+    return http<void>(`/quizzes/${quizId}`, {
+      method: "DELETE",
+      auth: true,
+    });
+  },
+
+  submitQuizAttempt: async (
+    quizId: string,
+    data: SubmitQuizAttemptRequest
+  ) => {
+    return http<QuizAttempt>(`/quizzes/${quizId}/attempts`, {
+      method: "POST",
+      auth: true,
+      body: JSON.stringify(data),
+    });
+  },
+
+  getQuizAttempts: async (quizId: string) => {
+    return http<QuizAttemptsResponse>(`/quizzes/${quizId}/attempts`, {
+      method: "GET",
+      auth: true,
+    });
   },
 };

@@ -147,3 +147,38 @@ export type Quiz = {
 export type FlashcardsResponse = {
   flashcards: Flashcard[];
 };
+
+export type QuizzesResponse = {
+  quizzes: Quiz[];
+};
+
+export type QuizAttemptAnswerRequest = {
+  question_id: string;
+  selected_answer: string;
+};
+
+export type SubmitQuizAttemptRequest = {
+  answers: QuizAttemptAnswerRequest[];
+};
+
+export type QuizAttemptAnswerResult = {
+  question_id: string;
+  selected_answer: string;
+  correct_answer: string;
+  is_correct: boolean;
+};
+
+export type QuizAttempt = {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  answers: QuizAttemptAnswerResult[];
+  score: number;
+  total_questions: number;
+  percentage: number;
+  created_at: string;
+};
+
+export type QuizAttemptsResponse = {
+  attempts: QuizAttempt[];
+};

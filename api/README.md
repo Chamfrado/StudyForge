@@ -1,302 +1,230 @@
 # StudyForge API
 
-StudyForge is an AI-powered study app with a FastAPI backend, Next.js frontend,
-PostgreSQL, SQLAlchemy, Alembic, JWT authentication, and OpenAI-compatible LLM
-providers.
+This is the backend project for StudyForge. It provides the FastAPI application,
+PostgreSQL data model, JWT authentication, file extraction, AI generation
+workflows, quiz scoring, analytics, migrations, and backend tests.
 
-It lets users create subjects, upload study materials, generate summaries,
-flashcards, and quizzes from those materials, track quiz attempts, and inspect
-learning analytics.
+For the full-stack overview, see the root [README](../README.md). For frontend
+details, see [web/README.md](../web/README.md).
 
 ## Table of Contents
 
-- [Features](#features)
+- [Responsibilities](#responsibilities)
 - [Tech Stack](#tech-stack)
+- [Domain Model](#domain-model)
 - [Project Structure](#project-structure)
 - [Environment Variables](#environment-variables)
-- [Run with Docker](#run-with-docker)
-- [Configure Groq AI](#configure-groq-ai)
-- [Use Mock AI](#use-mock-ai)
-- [Run Locally Without Docker](#run-locally-without-docker)
+- [Run With Docker](#run-with-docker)
+- [Run Locally](#run-locally)
 - [Database Migrations](#database-migrations)
+- [AI Providers](#ai-providers)
+- [File Upload and Extraction](#file-upload-and-extraction)
 - [API Quickstart](#api-quickstart)
-- [Main Endpoints](#main-endpoints)
-- [Development Commands](#development-commands)
+- [Endpoint Reference](#endpoint-reference)
+- [Testing and Linting](#testing-and-linting)
+- [Operational Notes](#operational-notes)
 - [Troubleshooting](#troubleshooting)
 
-## Features
+## Responsibilities
 
-- User registration, login, and JWT-protected routes
-- Subject CRUD for organizing study content
-- Material upload for UTF-8 `.txt` and `.md` files
-- AI-generated summaries from uploaded material
-- AI-generated flashcards with CSV export
-- AI-generated multiple-choice quizzes
-- Quiz attempt scoring and attempt history
-- Overview and per-subject analytics
-- Dockerized web app, API, and PostgreSQL database
-- Alembic migrations executed automatically in Docker
-- Groq/OpenAI-compatible AI provider support
-- Mock AI provider for local development without an API key
+The API owns the server-side system of record:
+
+- User registration and login
+- JWT token issuance and authenticated route protection
+- Subject CRUD
+- Material upload, storage, and text extraction
+- Summary generation
+- Flashcard generation, listing, deletion, and CSV export
+- Quiz generation, question storage, deletion, attempts, and scoring
+- Global analytics for the authenticated user
+- Per-subject analytics
+- Database migrations
+- Integration and service tests
 
 ## Tech Stack
 
-- Python 3.12+
-- FastAPI
-- PostgreSQL 16
-- SQLAlchemy 2 async ORM
-- Alembic
-- Pydantic Settings
-- JWT authentication with `python-jose`
-- Argon2 password hashing via `pwdlib`
-- OpenAI Python SDK for OpenAI-compatible providers such as Groq
-- Docker and Docker Compose
+| Area | Technology |
+| --- | --- |
+| Language | Python 3.12+ |
+| Web framework | FastAPI |
+| ASGI server | Uvicorn |
+| Database | PostgreSQL 16 |
+| ORM | SQLAlchemy 2 async ORM |
+| Migrations | Alembic |
+| Settings | Pydantic Settings |
+| Auth | JWT with `python-jose` |
+| Password hashing | Argon2 via `pwdlib` |
+| AI SDK | OpenAI Python SDK |
+| File extraction | Built-in text/Markdown handling, `pypdf`, `python-docx` |
+| Testing | Pytest, AnyIO, HTTPX |
+| Linting | Ruff |
+
+## Domain Model
+
+Core entities:
+
+- User - account identity and owner of study data
+- Subject - study category owned by a user
+- Material - uploaded file, extracted text, and processing status
+- Summary - AI-generated summary for a material
+- Flashcard - AI-generated front/back study card
+- Quiz - AI-generated quiz for a material
+- Quiz Question - multiple-choice quiz question
+- Quiz Attempt - submitted answers and score
+
+High-level flow:
+
+```text
+User -> Subject -> Material -> Summary
+                       |-> Flashcards
+                       `-> Quiz -> Quiz Attempts -> Analytics
+```
 
 ## Project Structure
 
 ```text
-.
-|-- api/
-|   |-- alembic/              # Database migrations
-|   |-- app/                  # FastAPI app
-|   |-- storage/              # Uploaded material files, mounted in Docker
-|   |-- docker-compose.yml    # Alternate compose entrypoint from api/
-|   |-- pyproject.toml        # Python package and dependencies
-|   `-- README.md
-|-- web/                      # Next.js app
-|-- Dockerfile                # Combined web + API app image
-|-- docker-compose.yml        # App + PostgreSQL services
-`-- docker-entrypoint.sh      # Runs migrations, then starts API and web
+api/
+|-- app/
+|   |-- core/                 # Config, database, security
+|   |-- modules/
+|   |   |-- ai/               # Providers, prompts, service, routes
+|   |   |-- analytics/        # Overview and subject analytics
+|   |   |-- auth/             # Register, login, current user
+|   |   |-- flashcards/       # Flashcard listing/export/deletion
+|   |   |-- materials/        # Upload, extraction, storage
+|   |   |-- quizzes/          # Quizzes, questions, attempts
+|   |   |-- subjects/         # Subject CRUD
+|   |   |-- summaries/        # Summary model/schema
+|   |   `-- users/            # User model/schema
+|   |-- shared/               # Text extraction helpers
+|   `-- main.py               # FastAPI app
+|-- alembic/
+|   `-- versions/             # Migration files
+|-- tests/
+|-- storage/                  # Local uploaded material storage
+|-- docker-compose.yml        # Alternate compose entrypoint from api/
+|-- docker-compose.test.yml   # Test PostgreSQL service
+|-- docker-entrypoint.sh      # API-only legacy entrypoint
+|-- dockerfile                # API-only legacy image
+|-- pyproject.toml
+|-- .env.example
+`-- README.md
 ```
 
 ## Environment Variables
 
-Create your local `.env` from the example:
+Create `api/.env` from the example:
 
-```bash
-cp .env.example .env
+```powershell
+Copy-Item api\.env.example api\.env
 ```
 
-On Windows PowerShell:
+From inside `api/`:
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+macOS/Linux:
+
+```bash
+cp api/.env.example api/.env
 ```
 
 Available settings:
 
 | Variable | Required | Example | Description |
 | --- | --- | --- | --- |
-| `APP_NAME` | No | `StudyForge API` | Name shown in health responses and OpenAPI docs. |
-| `APP_ENV` | No | `development` | Runtime environment label. |
-| `APP_DEBUG` | No | `true` | Enables SQLAlchemy debug logging when true. |
-| `CORS_ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins allowed to call the API. |
-| `DATABASE_URL` | Yes | `postgresql+asyncpg://studyforge:studyforge@localhost:5433/studyforge` | Async database URL used by the API. |
-| `JWT_SECRET_KEY` | Yes | `change-me-in-production` | Secret used to sign JWT access tokens. Replace in production. |
-| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm. |
-| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | No | `30` | Access token lifetime in minutes. |
-| `AI_PROVIDER` | No | `mock` | Use `mock`, `groq`, `openai-compatible`, or `openai_compatible`. |
-| `OPENAI_COMPATIBLE_API_KEY` | Only for real AI | `gsk_...` | API key for Groq or another OpenAI-compatible provider. |
-| `OPENAI_COMPATIBLE_BASE_URL` | Only for real AI | `https://api.groq.com/openai/v1` | OpenAI-compatible API base URL. |
-| `OPENAI_COMPATIBLE_MODEL` | Only for real AI | `openai/gpt-oss-20b` | Model ID sent to the provider. |
+| `APP_NAME` | No | `StudyForge API` | Name shown in health responses and docs |
+| `APP_ENV` | No | `development` | Runtime environment label |
+| `APP_DEBUG` | No | `true` | Enables SQLAlchemy debug logging when configured |
+| `CORS_ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins |
+| `DATABASE_URL` | Yes | `postgresql+asyncpg://studyforge:studyforge@localhost:5433/studyforge` | Async database URL |
+| `JWT_SECRET_KEY` | Yes | `change-me-in-production` | Token signing secret |
+| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | No | `30` | Access token lifetime |
+| `AI_PROVIDER` | No | `mock` | `mock`, `groq`, `openai-compatible`, or `openai_compatible` |
+| `OPENAI_COMPATIBLE_API_KEY` | For real AI | `gsk_...` | API key for Groq or another compatible provider |
+| `OPENAI_COMPATIBLE_BASE_URL` | For real AI | `https://api.groq.com/openai/v1` | OpenAI-compatible base URL |
+| `OPENAI_COMPATIBLE_MODEL` | For real AI | `openai/gpt-oss-20b` | Chat model ID |
 
-## Run with Docker
+## Run With Docker
 
-Docker is the recommended setup because one app container starts both the
-Next.js web app and FastAPI, with PostgreSQL provided by Compose. The public app
-port is `3000`; API requests are proxied through the web app at `/api/*`.
-
-1. From the `api/` directory, create `.env`:
-
-```bash
-cp .env.example .env
-```
-
-2. Choose the AI provider in `.env`.
-
-For mock AI:
-
-```env
-AI_PROVIDER=mock
-OPENAI_COMPATIBLE_API_KEY=
-```
-
-For Groq:
-
-```env
-AI_PROVIDER=groq
-OPENAI_COMPATIBLE_API_KEY=gsk_your_groq_key_here
-OPENAI_COMPATIBLE_BASE_URL=https://api.groq.com/openai/v1
-OPENAI_COMPATIBLE_MODEL=openai/gpt-oss-20b
-```
-
-3. From the repository root, start the development stack:
+From the repository root, run the complete app:
 
 ```bash
 docker compose up --build
 ```
 
-After the first build, use this for the normal development loop:
+After the first build:
 
 ```bash
 docker compose up
 ```
 
-The app container runs both servers with file watching enabled, so edits under
-`api/` and `web/` are picked up without running separate API or frontend
-commands.
+Open:
 
-4. Open the app:
+```text
+Web: http://localhost:3000
+API: http://localhost:8000
+Docs: http://localhost:8000/docs
+```
 
-- Web app: `http://localhost:3000`
-- API proxy base URL: `http://localhost:3000/api`
-- Direct API base URL: `http://localhost:8000`
-- Health check: `http://localhost:3000/api/health`
-- Swagger docs: `http://localhost:3000/api/docs`
-- ReDoc docs: `http://localhost:3000/api/redoc`
-
-The Docker default for the frontend is:
+The root Compose stack injects the Docker-internal database URL:
 
 ```env
-NEXT_PUBLIC_API_URL=/api
+DATABASE_URL=postgresql+asyncpg://studyforge:studyforge@postgres:5432/studyforge
 ```
 
-In development, the app container runs:
+PostgreSQL is exposed to the host at:
 
-```bash
-python -m alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-npm run dev -- --hostname 0.0.0.0 --port 3000
+```text
+localhost:5433
 ```
 
-PostgreSQL runs inside Docker on port `5432`, and is exposed to your host on
-port `5433`.
+## Run Locally
 
-Useful Docker commands:
+Use this mode when PostgreSQL is already available.
 
-```bash
-docker compose ps
-docker compose logs -f app
-docker compose logs -f postgres
-docker compose down
-docker compose down -v
-```
-
-Use `docker compose down -v` only when you want to delete the PostgreSQL volume
-and lose local database data.
-
-## Configure Groq AI
-
-The real AI path uses the OpenAI Python SDK with a custom `base_url`, so Groq
-works as an OpenAI-compatible provider.
-
-1. Create a Groq API key from your Groq dashboard.
-2. Put the key in `.env`:
-
-```env
-AI_PROVIDER=groq
-OPENAI_COMPATIBLE_API_KEY=gsk_your_groq_key_here
-OPENAI_COMPATIBLE_BASE_URL=https://api.groq.com/openai/v1
-OPENAI_COMPATIBLE_MODEL=openai/gpt-oss-20b
-```
-
-3. Restart the API:
-
-```bash
-docker compose up --build
-```
-
-The AI module expects the provider to return strict JSON. If you change
-`OPENAI_COMPATIBLE_MODEL`, choose a Groq model that supports chat completions
-and reliable JSON output.
-
-AI endpoints that use Groq:
-
-- `POST /ai/materials/{material_id}/summary`
-- `POST /ai/materials/{material_id}/flashcards`
-- `POST /ai/materials/{material_id}/quiz`
-
-## Use Mock AI
-
-Mock AI is best for local development, demos, tests, and frontend integration
-when you do not want to spend tokens or depend on an external provider.
-
-Set:
-
-```env
-AI_PROVIDER=mock
-OPENAI_COMPATIBLE_API_KEY=
-```
-
-The mock provider returns deterministic summaries, flashcards, and quizzes
-based on a preview of the uploaded material.
-
-## Run Locally Without Docker
-
-Use this option when you already have PostgreSQL running locally.
-
-1. Create and activate a virtual environment:
-
-```bash
-python -m venv .venv
-```
-
-PowerShell:
+From `api/`:
 
 ```powershell
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -e ".[dev]"
+Copy-Item .env.example .env
+python -m alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-macOS/Linux:
+macOS/Linux activation:
 
 ```bash
 source .venv/bin/activate
 ```
 
-2. Install dependencies:
+Local API:
 
-```bash
-pip install --upgrade pip
-pip install -e ".[dev]"
+```text
+http://127.0.0.1:8000
 ```
 
-3. Create `.env`:
+Swagger:
 
-```bash
-cp .env.example .env
+```text
+http://127.0.0.1:8000/docs
 ```
-
-For a local database exposed on port `5433`, keep:
-
-```env
-DATABASE_URL=postgresql+asyncpg://studyforge:studyforge@localhost:5433/studyforge
-```
-
-4. Run migrations:
-
-```bash
-python -m alembic upgrade head
-```
-
-5. Start the API:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-The local API will be available at `http://127.0.0.1:8000`.
 
 ## Database Migrations
 
-Alembic migration files live in `alembic/versions`.
-
-Run all migrations:
+Run migrations:
 
 ```bash
 python -m alembic upgrade head
 ```
 
-Create a new migration after model changes:
+Create a migration:
 
 ```bash
 python -m alembic revision --autogenerate -m "describe the change"
@@ -308,175 +236,156 @@ Rollback one migration:
 python -m alembic downgrade -1
 ```
 
-The app uses `postgresql+asyncpg` at runtime. Alembic converts that URL to
-`postgresql+psycopg` internally for synchronous migration execution.
+Runtime uses `postgresql+asyncpg`. Alembic converts the URL internally for
+synchronous migration execution where needed.
+
+## AI Providers
+
+### Mock Provider
+
+Best for tests, local development, and demos:
+
+```env
+AI_PROVIDER=mock
+OPENAI_COMPATIBLE_API_KEY=
+```
+
+The mock provider returns deterministic generated content from uploaded text.
+
+### Groq or OpenAI-Compatible Provider
+
+```env
+AI_PROVIDER=groq
+OPENAI_COMPATIBLE_API_KEY=gsk_your_key_here
+OPENAI_COMPATIBLE_BASE_URL=https://api.groq.com/openai/v1
+OPENAI_COMPATIBLE_MODEL=openai/gpt-oss-20b
+```
+
+The AI service expects structured JSON-like outputs for summaries, flashcards,
+and quizzes. Validate any model change before using it in production.
+
+## File Upload and Extraction
+
+Supported material extensions:
+
+```text
+.txt, .md, .pdf, .docx
+```
+
+Extraction behavior:
+
+- `.txt` and `.md` are decoded as UTF-8 text.
+- `.pdf` is parsed with `pypdf`.
+- `.docx` is parsed with `python-docx`.
+- Empty or unsupported files are rejected.
+- Uploaded files are stored under `api/storage/` in local/dev mode.
 
 ## API Quickstart
 
-The fastest way to explore the API is Swagger:
-
-```text
-http://localhost:8000/docs
-```
-
-Manual flow:
-
-1. Register a user.
-2. Login and copy the `access_token`.
-3. Create a subject.
-4. Upload a `.txt` or `.md` material for that subject.
-5. Generate summary, flashcards, or quiz from the material.
-6. Answer a quiz and review analytics.
-
-### Register
+1. Register:
 
 ```bash
 curl -X POST http://localhost:8000/auth/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "full_name": "Ada Lovelace",
-    "email": "ada@example.com",
-    "password": "strongpassword"
-  }'
+  -d "{\"full_name\":\"Ada Lovelace\",\"email\":\"ada@example.com\",\"password\":\"strongpassword\"}"
 ```
 
-### Login
+2. Login:
 
 ```bash
 curl -X POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "ada@example.com",
-    "password": "strongpassword"
-  }'
+  -d "{\"email\":\"ada@example.com\",\"password\":\"strongpassword\"}"
 ```
 
-Use the returned token:
-
-```bash
-export TOKEN="paste_access_token_here"
-```
-
-PowerShell:
+3. Use the returned access token:
 
 ```powershell
 $env:TOKEN = "paste_access_token_here"
 ```
 
-### Create a Subject
+4. Create a subject:
 
 ```bash
 curl -X POST http://localhost:8000/subjects \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Biology",
-    "description": "Cell biology and genetics"
-  }'
+  -d "{\"name\":\"Biology\",\"description\":\"Cell biology and genetics\"}"
 ```
 
-### Upload Study Material
-
-Only UTF-8 `.txt` and `.md` files are supported.
+5. Upload material:
 
 ```bash
 curl -X POST http://localhost:8000/materials/upload \
   -H "Authorization: Bearer $TOKEN" \
   -F "subject_id=paste_subject_id_here" \
   -F "title=Cell Structure Notes" \
-  -F "file=@test-material.txt"
+  -F "file=@notes.pdf"
 ```
 
-### Generate a Summary
+6. Generate study resources:
 
 ```bash
 curl -X POST http://localhost:8000/ai/materials/paste_material_id_here/summary \
   -H "Authorization: Bearer $TOKEN"
-```
 
-### Generate Flashcards
-
-```bash
 curl -X POST http://localhost:8000/ai/materials/paste_material_id_here/flashcards \
   -H "Authorization: Bearer $TOKEN"
-```
 
-### Generate a Quiz
-
-```bash
 curl -X POST http://localhost:8000/ai/materials/paste_material_id_here/quiz \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Submit a Quiz Attempt
-
-```bash
-curl -X POST http://localhost:8000/quizzes/paste_quiz_id_here/attempts \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "answers": [
-      {
-        "question_id": "paste_question_id_here",
-        "selected_answer": "A"
-      }
-    ]
-  }'
-```
-
-## Main Endpoints
+## Endpoint Reference
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `GET` | `/health` | No | API health check. |
-| `POST` | `/auth/register` | No | Create a user account. |
-| `POST` | `/auth/login` | No | Login and receive a JWT token. |
-| `GET` | `/auth/me` | Yes | Get the current authenticated user. |
-| `POST` | `/subjects` | Yes | Create a subject. |
-| `GET` | `/subjects` | Yes | List subjects. |
-| `GET` | `/subjects/{subject_id}` | Yes | Get one subject. |
-| `PUT` | `/subjects/{subject_id}` | Yes | Update a subject. |
-| `DELETE` | `/subjects/{subject_id}` | Yes | Delete a subject. |
-| `POST` | `/materials/upload` | Yes | Upload a `.txt` or `.md` material. |
-| `GET` | `/materials` | Yes | List uploaded materials. |
-| `GET` | `/materials/{material_id}` | Yes | Get one material. |
-| `DELETE` | `/materials/{material_id}` | Yes | Delete a material. |
-| `POST` | `/ai/materials/{material_id}/summary` | Yes | Generate and save a summary. |
-| `POST` | `/ai/materials/{material_id}/flashcards` | Yes | Generate and save flashcards. |
-| `POST` | `/ai/materials/{material_id}/quiz` | Yes | Generate and save a quiz. |
-| `GET` | `/flashcards` | Yes | List flashcards. |
-| `GET` | `/flashcards/export/csv` | Yes | Export flashcards as CSV. |
-| `GET` | `/flashcards/{flashcard_id}` | Yes | Get one flashcard. |
-| `DELETE` | `/flashcards/{flashcard_id}` | Yes | Delete a flashcard. |
-| `GET` | `/quizzes` | Yes | List quizzes. |
-| `GET` | `/quizzes/{quiz_id}` | Yes | Get quiz questions. |
-| `DELETE` | `/quizzes/{quiz_id}` | Yes | Delete a quiz. |
-| `POST` | `/quizzes/{quiz_id}/attempts` | Yes | Submit quiz answers. |
-| `GET` | `/quizzes/{quiz_id}/attempts` | Yes | List quiz attempts. |
-| `GET` | `/analytics/overview` | Yes | Get global user study analytics. |
-| `GET` | `/analytics/subjects/{subject_id}` | Yes | Get analytics for one subject. |
+| `GET` | `/health` | No | Health check |
+| `POST` | `/auth/register` | No | Register user |
+| `POST` | `/auth/login` | No | Login and receive JWT |
+| `GET` | `/auth/me` | Yes | Current user |
+| `GET` | `/subjects` | Yes | List subjects |
+| `POST` | `/subjects` | Yes | Create subject |
+| `GET` | `/subjects/{subject_id}` | Yes | Get subject |
+| `PUT` | `/subjects/{subject_id}` | Yes | Update subject |
+| `DELETE` | `/subjects/{subject_id}` | Yes | Delete subject |
+| `GET` | `/materials` | Yes | List materials |
+| `POST` | `/materials/upload` | Yes | Upload material |
+| `GET` | `/materials/{material_id}` | Yes | Get material |
+| `DELETE` | `/materials/{material_id}` | Yes | Delete material |
+| `POST` | `/ai/materials/{material_id}/summary` | Yes | Generate summary |
+| `POST` | `/ai/materials/{material_id}/flashcards` | Yes | Generate flashcards |
+| `POST` | `/ai/materials/{material_id}/quiz` | Yes | Generate quiz |
+| `GET` | `/flashcards` | Yes | List flashcards |
+| `GET` | `/flashcards/export/csv` | Yes | Export CSV |
+| `GET` | `/flashcards/{flashcard_id}` | Yes | Get flashcard |
+| `DELETE` | `/flashcards/{flashcard_id}` | Yes | Delete flashcard |
+| `GET` | `/quizzes` | Yes | List quizzes |
+| `GET` | `/quizzes/{quiz_id}` | Yes | Get quiz with questions |
+| `DELETE` | `/quizzes/{quiz_id}` | Yes | Delete quiz |
+| `POST` | `/quizzes/{quiz_id}/attempts` | Yes | Submit attempt |
+| `GET` | `/quizzes/{quiz_id}/attempts` | Yes | List attempts |
+| `GET` | `/analytics/overview` | Yes | Global analytics |
+| `GET` | `/analytics/subjects/{subject_id}` | Yes | Subject analytics |
 
-## Development Commands
+## Testing and Linting
 
-Install development dependencies:
+Start the test database:
 
 ```bash
-pip install -e ".[dev]"
+docker compose -f docker-compose.test.yml up -d postgres-test
 ```
 
 Run tests:
 
 ```bash
-docker compose -f docker-compose.test.yml up -d postgres-test
 pytest
-docker compose -f docker-compose.test.yml down -v
 ```
 
-The integration tests use `TEST_DATABASE_URL` when it is set. By default they
-connect to:
+Stop the test database:
 
-```env
-postgresql+asyncpg://studyforge:studyforge@localhost:5434/studyforge_test
+```bash
+docker compose -f docker-compose.test.yml down -v
 ```
 
 Run linting:
@@ -485,94 +394,70 @@ Run linting:
 ruff check .
 ```
 
-Run the API locally with reload:
+Default test database URL:
 
-```bash
-uvicorn app.main:app --reload
+```env
+postgresql+asyncpg://studyforge:studyforge@localhost:5434/studyforge_test
 ```
 
-## Production Notes
+Override it with `TEST_DATABASE_URL` when needed.
 
-- Replace `JWT_SECRET_KEY` with a strong secret before deploying.
-- Keep `.env` out of version control.
-- Use `AI_PROVIDER=mock` only for development or demos.
-- Persist the `storage/` directory if uploaded files must survive deploys.
-- Use managed PostgreSQL or a persistent Docker volume in production.
-- Keep `APP_DEBUG=false` in production to avoid noisy SQL logging.
-- Validate your selected Groq model before shipping, especially JSON output
-  reliability for summaries, flashcards, and quizzes.
+## Operational Notes
+
+- Use a strong `JWT_SECRET_KEY` in production.
+- Do not commit real `.env` files.
+- Persist `api/storage/` if uploaded files must survive deployments.
+- Use managed PostgreSQL for production.
+- Keep `APP_DEBUG=false` in production.
+- Use `AI_PROVIDER=mock` only outside production.
+- Validate model output quality for summaries, flashcards, and quizzes.
 
 ## Troubleshooting
 
-### `OPENAI_COMPATIBLE_API_KEY is missing`
+### Database connection fails
 
-You set `AI_PROVIDER=groq`, `openai-compatible`, or `openai_compatible` without
-an API key. Add:
-
-```env
-OPENAI_COMPATIBLE_API_KEY=gsk_your_groq_key_here
-```
-
-Or switch back to:
-
-```env
-AI_PROVIDER=mock
-```
-
-### `Unknown AI_PROVIDER`
-
-Use one of:
-
-```env
-AI_PROVIDER=mock
-AI_PROVIDER=groq
-AI_PROVIDER=openai-compatible
-AI_PROVIDER=openai_compatible
-```
-
-### Database connection fails locally
-
-If using Docker PostgreSQL from your host machine, the database is exposed on
-port `5433`, so use:
+Host process connecting to Docker PostgreSQL:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://studyforge:studyforge@localhost:5433/studyforge
 ```
 
-Inside Docker Compose, the app container uses the internal service name:
+Container process connecting inside Compose:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://studyforge:studyforge@postgres:5432/studyforge
 ```
 
-The Compose file already injects the Docker-internal value for the app service.
+### `OPENAI_COMPATIBLE_API_KEY is missing`
 
-### Upload returns `Only .txt and .md files are supported`
+Either configure a key:
 
-The material upload service currently accepts only `.txt` and `.md` files.
-Files must be UTF-8 encoded and cannot be empty.
-
-### Port already in use
-
-If `3000` is already used, change the app port mapping in `docker-compose.yml`:
-
-```yaml
-ports:
-  - "3001:3000"
+```env
+OPENAI_COMPATIBLE_API_KEY=gsk_your_key_here
 ```
 
-Then open `http://localhost:3001`.
+or use mock mode:
 
-If `5433` is already used, change the PostgreSQL host port:
-
-```yaml
-ports:
-  - "5434:5432"
+```env
+AI_PROVIDER=mock
 ```
 
-Then update local non-Docker `DATABASE_URL` to use port `5434`.
+### Upload is rejected
 
-## License
+Use one of:
 
-No license file is currently included. Add one before distributing or publishing
-the project.
+```text
+.txt, .md, .pdf, .docx
+```
+
+Make sure the file is not empty and can be parsed.
+
+### CORS blocks browser requests
+
+Add your frontend origin:
+
+```env
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+```
+
+Restart the API after editing `.env`.

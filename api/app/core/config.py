@@ -18,6 +18,15 @@ class Settings(BaseSettings):
         alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
     ai_provider: str = Field(default="mock", alias="AI_PROVIDER")
+    cors_allowed_origins: str = Field(
+        default=(
+            "http://localhost:3000,"
+            "http://127.0.0.1:3000,"
+            "http://localhost:3001,"
+            "http://127.0.0.1:3001"
+        ),
+        alias="CORS_ALLOWED_ORIGINS",
+    )
 
     openai_compatible_api_key: str | None = Field(
         default=None,
@@ -39,6 +48,14 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 @lru_cache

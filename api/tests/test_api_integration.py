@@ -19,6 +19,21 @@ async def test_health_check(client: AsyncClient) -> None:
     }
 
 
+async def test_cors_allows_local_frontend_origin(client: AsyncClient) -> None:
+    response = await client.options(
+        "/auth/login",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "POST" in response.headers["access-control-allow-methods"]
+
+
 async def test_auth_register_login_and_me(
     client: AsyncClient,
     user_factory: Callable[[str], dict[str, str]],

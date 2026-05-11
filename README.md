@@ -454,7 +454,16 @@ pip install -e ".[dev]"
 Run tests:
 
 ```bash
+docker compose -f docker-compose.test.yml up -d postgres-test
 pytest
+docker compose -f docker-compose.test.yml down -v
+```
+
+The integration tests use `TEST_DATABASE_URL` when it is set. By default they
+connect to:
+
+```env
+postgresql+asyncpg://studyforge:studyforge@localhost:5434/studyforge_test
 ```
 
 Run linting:

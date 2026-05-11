@@ -31,3 +31,23 @@ export type ApiErrorResponse = {
   detail?: string;
   message?: string;
 };
+
+export type QuizAttemptSummary = {
+  id: string;
+  quiz_id: string;
+  score: number;
+  total_questions: number;
+  percentage: number;
+  created_at: string;
+};
+
+export type AnalyticsOverview = {
+  total_subjects: number;
+  total_materials: number;
+  total_flashcards: number;
+  total_quizzes: number;
+  total_quiz_attempts: number;
+  average_quiz_score: number;
+  best_quiz_score: number;
+  latest_attempts: QuizAttemptSummary[];
+};

@@ -1,5 +1,6 @@
 import { clearAuth, getToken, saveAuth } from "@/lib/auth";
 import type {
+  AnalyticsOverview,
   ApiErrorResponse,
   LoginRequest,
   LoginResponse,
@@ -80,6 +81,13 @@ export const api = {
 
   me: async () => {
     return http("/auth/me", {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  getAnalyticsOverview: async () => {
+    return http<AnalyticsOverview>("/analytics/overview", {
       method: "GET",
       auth: true,
     });

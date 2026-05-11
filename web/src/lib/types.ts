@@ -182,3 +182,15 @@ export type QuizAttempt = {
 export type QuizAttemptsResponse = {
   attempts: QuizAttempt[];
 };
+
+export type SubjectAnalytics = {
+  subject_id: string;
+  subject_name: string;
+  total_materials: number;
+  total_flashcards: number;
+  total_quizzes: number;
+  total_quiz_attempts: number;
+  average_quiz_score: number;
+  best_quiz_score: number;
+  latest_attempts: QuizAttemptSummary[];
+};

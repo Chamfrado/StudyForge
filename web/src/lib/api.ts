@@ -17,6 +17,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
   Subject,
+  SubjectAnalytics,
   SubjectsResponse,
   SubmitQuizAttemptRequest,
   Summary,
@@ -350,6 +351,13 @@ export const api = {
 
   getQuizAttempts: async (quizId: string) => {
     return http<QuizAttemptsResponse>(`/quizzes/${quizId}/attempts`, {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  getSubjectAnalytics: async (subjectId: string) => {
+    return http<SubjectAnalytics>(`/analytics/subjects/${subjectId}`, {
       method: "GET",
       auth: true,
     });

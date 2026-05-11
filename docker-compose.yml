@@ -1,4 +1,22 @@
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studyforge-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://studyforge:studyforge@postgres:5432/studyforge
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:16
     container_name: studyforge-postgres
@@ -11,6 +29,11 @@ services:
       - "5433:5432"
     volumes:
       - studyforge_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studyforge -d studyforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   studyforge_postgres_data:

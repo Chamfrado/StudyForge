@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+from app.core.config import settings
 from app.core.database import Base
 from app.modules.flashcards.models import Flashcard  # noqa: F401
 from app.modules.materials.models import Material  # noqa: F401
@@ -19,8 +20,19 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def get_migration_database_url() -> str:
+    """
+    Alembic uses a sync database driver.
+    The FastAPI app uses asyncpg, so we convert the URL for migrations.
+    """
+    return settings.database_url.replace(
+        "postgresql+asyncpg",
+        "postgresql+psycopg",
+    )
+
+
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    url = get_migration_database_url()
 
     context.configure(
         url=url,
@@ -39,6 +51,8 @@ def run_migrations_online() -> None:
 
     if configuration is None:
         raise RuntimeError("Alembic configuration section was not found.")
+
+    configuration["sqlalchemy.url"] = get_migration_database_url()
 
     connectable = engine_from_config(
         configuration,

@@ -343,6 +343,9 @@ export default function QuizDetailPage() {
                           <span
                             className={cn(
                               "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
+                              !latestAttempt &&
+                                !isSelected &&
+                                "border-slate-400 bg-white text-slate-800",
                               isSelected &&
                                 !latestAttempt &&
                                 "border-indigo-600 bg-indigo-600 text-white",
@@ -353,6 +356,10 @@ export default function QuizDetailPage() {
                                 wasSelected &&
                                 !isCorrect &&
                                 "border-red-600 bg-red-600 text-white",
+                              latestAttempt &&
+                                !wasSelected &&
+                                !isCorrect &&
+                                "border-slate-400 bg-white text-slate-700"
                             )}
                           >
                             {letter}

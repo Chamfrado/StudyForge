@@ -70,7 +70,7 @@ export default function UploadMaterialPage() {
     const lowerName = selectedFile.name.toLowerCase();
 
     const isAllowed = allowedExtensions.some((extension) =>
-      lowerName.endsWith(extension)
+      lowerName.endsWith(extension),
     );
 
     if (!isAllowed) {
@@ -147,9 +147,7 @@ export default function UploadMaterialPage() {
           <div className="flex min-h-64 items-center justify-center">
             <div className="text-center">
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-600" />
-              <p className="mt-3 text-sm text-slate-500">
-                Loading subjects...
-              </p>
+              <p className="mt-3 text-sm text-slate-500">Loading subjects...</p>
             </div>
           </div>
         ) : subjects.length ? (

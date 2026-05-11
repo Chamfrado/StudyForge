@@ -5,64 +5,38 @@ import Link from "next/link";
 import {
   BarChart3,
   BookOpen,
-  Edit3,
-  FilePlus2,
+  Brain,
+  FileText,
+  Layers3,
   Loader2,
-  Plus,
   RefreshCcw,
-  Search,
-  Trash2,
+  Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 
 import { api } from "@/lib/api";
-import type { Subject } from "@/lib/types";
-import { Button } from "@/components/ui/Button";
+import type { AnalyticsOverview } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-
-const subjectSchema = z.object({
-  name: z.string().min(2, "Subject name must have at least 2 characters."),
-  description: z.string().max(500, "Description is too long.").optional(),
-});
-
-type SubjectFormData = z.infer<typeof subjectSchema>;
+import { Button } from "@/components/ui/Button";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
+    timeStyle: "short",
   }).format(new Date(value));
 }
 
-export default function SubjectsPage() {
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [search, setSearch] = useState("");
-  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
-  const [deletingSubject, setDeletingSubject] = useState<Subject | null>(null);
+function formatPercent(value: number) {
+  return `${Math.round(value)}%`;
+}
 
+export default function DashboardPage() {
+  const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    formState: { errors },
-  } = useForm<SubjectFormData>({
-    resolver: zodResolver(subjectSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-    },
-  });
-
-  async function loadSubjects(options?: { silent?: boolean }) {
+  async function loadOverview(options?: { silent?: boolean }) {
     try {
       if (options?.silent) {
         setIsRefreshing(true);
@@ -70,14 +44,20 @@ export default function SubjectsPage() {
         setIsLoading(true);
       }
 
-      const response = await api.getSubjects();
+      setErrorMessage(null);
 
-      setSubjects(response.subjects);
+      const data = await api.getAnalyticsOverview();
+
+      setOverview(data);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Could not load subjects.";
+        error instanceof Error ? error.message : "Could not load analytics.";
 
-      toast.error(message);
+      setErrorMessage(message);
+
+      if (!options?.silent) {
+        toast.error(message);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -85,394 +65,280 @@ export default function SubjectsPage() {
   }
 
   useEffect(() => {
-    loadSubjects();
+    loadOverview();
   }, []);
 
-  const filteredSubjects = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+  const stats = useMemo(() => {
+    return [
+      {
+        label: "Subjects",
+        value: overview?.total_subjects ?? 0,
+        icon: BookOpen,
+      },
+      {
+        label: "Materials",
+        value: overview?.total_materials ?? 0,
+        icon: FileText,
+      },
+      {
+        label: "Flashcards",
+        value: overview?.total_flashcards ?? 0,
+        icon: Layers3,
+      },
+      {
+        label: "Quizzes",
+        value: overview?.total_quizzes ?? 0,
+        icon: Brain,
+      },
+      {
+        label: "Attempts",
+        value: overview?.total_quiz_attempts ?? 0,
+        icon: BarChart3,
+      },
+      {
+        label: "Average score",
+        value: formatPercent(overview?.average_quiz_score ?? 0),
+        icon: Trophy,
+      },
+      {
+        label: "Best score",
+        value: formatPercent(overview?.best_quiz_score ?? 0),
+        icon: Trophy,
+      },
+    ];
+  }, [overview]);
 
-    if (!normalizedSearch) return subjects;
-
-    return subjects.filter((subject) => {
-      return (
-        subject.name.toLowerCase().includes(normalizedSearch) ||
-        subject.description?.toLowerCase().includes(normalizedSearch)
-      );
-    });
-  }, [subjects, search]);
-
-  function startCreateMode() {
-    setEditingSubject(null);
-    reset({
-      name: "",
-      description: "",
-    });
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-indigo-600" />
+          <p className="mt-4 text-sm font-medium text-slate-700">
+            Loading your dashboard...
+          </p>
+        </div>
+      </div>
+    );
   }
 
-  function startEditMode(subject: Subject) {
-    setEditingSubject(subject);
+  if (errorMessage && !overview) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Card className="max-w-md text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+            <BarChart3 className="h-6 w-6" />
+          </div>
 
-    setValue("name", subject.name);
-    setValue("description", subject.description || "");
+          <h1 className="mt-4 text-xl font-semibold text-slate-950">
+            Could not load dashboard
+          </h1>
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
+          <p className="mt-2 text-sm font-medium text-slate-700">
+            {errorMessage}
+          </p>
 
-  async function onSubmit(data: SubjectFormData) {
-    try {
-      setIsSaving(true);
-
-      const payload = {
-        name: data.name,
-        description: data.description || "",
-      };
-
-      if (editingSubject) {
-        const updatedSubject = await api.updateSubject(
-          editingSubject.id,
-          payload
-        );
-
-        setSubjects((current) =>
-          current.map((subject) =>
-            subject.id === updatedSubject.id ? updatedSubject : subject
-          )
-        );
-
-        toast.success("Subject updated successfully.");
-      } else {
-        const createdSubject = await api.createSubject(payload);
-
-        setSubjects((current) => [createdSubject, ...current]);
-
-        toast.success("Subject created successfully.");
-      }
-
-      setEditingSubject(null);
-      reset({
-        name: "",
-        description: "",
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not save subject.";
-
-      toast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function confirmDelete() {
-    if (!deletingSubject) return;
-
-    try {
-      setIsDeleting(true);
-
-      await api.deleteSubject(deletingSubject.id);
-
-      setSubjects((current) =>
-        current.filter((subject) => subject.id !== deletingSubject.id)
-      );
-
-      toast.success("Subject deleted successfully.");
-      setDeletingSubject(null);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not delete subject.";
-
-      toast.error(message);
-    } finally {
-      setIsDeleting(false);
-    }
+          <Button className="mt-6" onClick={() => loadOverview()}>
+            Try again
+          </Button>
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-8">
       <section className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm font-medium text-indigo-600">Subjects</p>
+          <p className="text-sm font-medium text-indigo-600">
+            Dashboard Overview
+          </p>
 
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-            Organize your study areas
+            Your study workspace
           </h1>
 
-          <p className="mt-2 max-w-2xl text-slate-500">
-            Create subjects to group your materials, summaries, flashcards,
-            quizzes and analytics.
+          <p className="mt-2 max-w-2xl text-slate-700">
+            Track your subjects, materials, flashcards, quizzes and learning
+            performance from one place.
           </p>
         </div>
 
-        <Button
-          variant="secondary"
-          onClick={() => loadSubjects({ silent: true })}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Refreshing...
-            </>
-          ) : (
-            <>
-              <RefreshCcw className="mr-2 h-4 w-4" />
-              Refresh
-            </>
-          )}
-        </Button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button
+            variant="secondary"
+            onClick={() => loadOverview({ silent: true })}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                Refresh
+              </>
+            )}
+          </Button>
+
+          <Link href="/dashboard/subjects">
+            <Button variant="secondary" className="w-full">
+              Create subject
+            </Button>
+          </Link>
+
+          <Link href="/dashboard/materials/upload">
+            <Button className="w-full">Upload material</Button>
+          </Link>
+        </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+
+          return (
+            <Card key={stat.label}>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">
+                    {stat.label}
+                  </p>
+
+                  <p className="mt-2 text-3xl font-bold text-slate-950">
+                    {stat.value}
+                  </p>
+                </div>
+
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                  <Icon className="h-6 w-6" />
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
         <Card>
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-950">
-                {editingSubject ? "Edit subject" : "Create subject"}
+                Latest quiz attempts
               </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
-                {editingSubject
-                  ? "Update this study area."
-                  : "Add a new study area to your workspace."}
+              <p className="mt-1 text-sm font-medium text-slate-700">
+                Your recent quiz performance.
               </p>
             </div>
 
-            {editingSubject && (
-              <Button variant="ghost" onClick={startCreateMode}>
-                New
-              </Button>
-            )}
+            <Link
+              href="/dashboard/quizzes"
+              className="text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              View quizzes
+            </Link>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Subject name
-              </label>
+          {overview?.latest_attempts?.length ? (
+            <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-700">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Quiz</th>
+                    <th className="px-4 py-3 font-semibold">Score</th>
+                    <th className="px-4 py-3 font-semibold">Percentage</th>
+                    <th className="px-4 py-3 font-semibold">Date</th>
+                  </tr>
+                </thead>
 
-              <Input placeholder="FastAPI" {...register("name")} />
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {overview.latest_attempts.map((attempt) => (
+                    <tr key={attempt.id}>
+                      <td className="px-4 py-3 font-medium text-slate-950">
+                        <Link
+                          href={`/dashboard/quizzes/${attempt.quiz_id}`}
+                          className="hover:text-indigo-600"
+                        >
+                          {attempt.quiz_id.slice(0, 8)}...
+                        </Link>
+                      </td>
 
-              {errors.name && (
-                <p className="mt-2 text-sm text-red-600">
-                  {errors.name.message}
-                </p>
-              )}
-            </div>
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {attempt.score}/{attempt.total_questions}
+                      </td>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Description
-              </label>
+                      <td className="px-4 py-3">
+                        <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                          {formatPercent(attempt.percentage)}
+                        </span>
+                      </td>
 
-              <textarea
-                placeholder="Learning Python backend development with FastAPI."
-                className="min-h-28 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                {...register("description")}
-              />
-
-              {errors.description && (
-                <p className="mt-2 text-sm text-red-600">
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : editingSubject ? (
-                "Save changes"
-              ) : (
-                <>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create subject
-                </>
-              )}
-            </Button>
-          </form>
-        </Card>
-
-        <Card>
-          <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-950">
-                Your subjects
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {subjects.length} subject{subjects.length === 1 ? "" : "s"}{" "}
-                created.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <Search className="h-4 w-4 text-slate-400" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search subjects..."
-                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 md:w-56"
-              />
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="flex min-h-72 items-center justify-center">
-              <div className="text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-600" />
-                <p className="mt-3 text-sm text-slate-500">
-                  Loading subjects...
-                </p>
-              </div>
-            </div>
-          ) : filteredSubjects.length ? (
-            <div className="space-y-4">
-              {filteredSubjects.map((subject) => (
-                <div
-                  key={subject.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-indigo-200 hover:shadow-sm"
-                >
-                  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                    <div>
-                      <div className="mb-2 flex items-center gap-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                          <BookOpen className="h-4 w-4" />
-                        </div>
-
-                        <h3 className="text-lg font-semibold text-slate-950">
-                          {subject.name}
-                        </h3>
-                      </div>
-
-                      <p className="max-w-2xl text-sm text-slate-500">
-                        {subject.description || "No description provided."}
-                      </p>
-
-                      <p className="mt-3 text-xs text-slate-400">
-                        Created on {formatDate(subject.created_at)}
-                      </p>
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <Link
-                        href={`/dashboard/subjects/${subject.id}/analytics`}
-                      >
-                        <Button variant="secondary">
-                          <BarChart3 className="mr-2 h-4 w-4" />
-                          Analytics
-                        </Button>
-                      </Link>
-
-                      <Link
-                        href={`/dashboard/materials/upload?subjectId=${subject.id}`}
-                      >
-                        <Button variant="secondary">
-                          <FilePlus2 className="mr-2 h-4 w-4" />
-                          Upload
-                        </Button>
-                      </Link>
-
-                      <Button
-                        variant="ghost"
-                        onClick={() => startEditMode(subject)}
-                      >
-                        <Edit3 className="mr-2 h-4 w-4" />
-                        Edit
-                      </Button>
-
-                      <Button
-                        variant="ghost"
-                        onClick={() => setDeletingSubject(subject)}
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : subjects.length ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-              <Search className="mx-auto h-10 w-10 text-slate-400" />
-
-              <h3 className="mt-4 text-sm font-semibold text-slate-900">
-                No subjects found
-              </h3>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Try searching with another name or description.
-              </p>
+                      <td className="px-4 py-3 font-medium text-slate-700">
+                        {formatDate(attempt.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-              <BookOpen className="mx-auto h-10 w-10 text-slate-400" />
-
-              <h3 className="mt-4 text-sm font-semibold text-slate-900">
-                No subjects yet
-              </h3>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Create your first subject to start uploading materials.
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+              <p className="text-sm font-semibold text-slate-900">
+                No quiz attempts yet
               </p>
+
+              <p className="mt-2 text-sm font-medium text-slate-700">
+                Generate a quiz from a material and submit your answers to see
+                results here.
+              </p>
+
+              <Link href="/dashboard/materials" className="mt-5 inline-flex">
+                <Button variant="secondary">Go to materials</Button>
+              </Link>
             </div>
           )}
         </Card>
-      </section>
 
-      {deletingSubject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4">
-          <Card className="w-full max-w-md">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-              <Trash2 className="h-6 w-6" />
-            </div>
-
-            <h2 className="mt-4 text-xl font-semibold text-slate-950">
-              Delete subject?
+        <Card>
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-slate-950">
+              Quick actions
             </h2>
 
-            <p className="mt-2 text-sm text-slate-500">
-              You are about to delete{" "}
-              <span className="font-medium text-slate-900">
-                {deletingSubject.name}
-              </span>
-              . This action cannot be undone.
+            <p className="mt-1 text-sm font-medium text-slate-700">
+              Start building your study base.
             </p>
+          </div>
 
-            <div className="mt-6 flex justify-end gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => setDeletingSubject(null)}
-                disabled={isDeleting}
-              >
-                Cancel
+          <div className="space-y-3">
+            <Link href="/dashboard/subjects">
+              <Button variant="secondary" className="w-full justify-start">
+                Create a new subject
               </Button>
+            </Link>
 
-              <Button
-                variant="danger"
-                onClick={confirmDelete}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete subject"
-                )}
+            <Link href="/dashboard/materials/upload">
+              <Button variant="secondary" className="w-full justify-start">
+                Upload study material
               </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+            </Link>
+
+            <Link href="/dashboard/flashcards">
+              <Button variant="secondary" className="w-full justify-start">
+                Review flashcards
+              </Button>
+            </Link>
+
+            <Link href="/dashboard/quizzes">
+              <Button variant="secondary" className="w-full justify-start">
+                Take a quiz
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </section>
     </div>
   );
 }

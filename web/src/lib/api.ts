@@ -3,6 +3,8 @@ import type {
   AnalyticsOverview,
   ApiErrorResponse,
   CreateSubjectRequest,
+  Flashcard,
+  FlashcardsResponse,
   GenerateFlashcardsResponse,
   LoginRequest,
   LoginResponse,
@@ -17,7 +19,6 @@ import type {
   UpdateSubjectRequest,
   UploadMaterialRequest,
 } from "@/lib/types";
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 type RequestOptions = RequestInit & {
@@ -81,7 +82,7 @@ async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
 async function httpFormData<T>(
   path: string,
   formData: FormData,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token = getToken();
 
@@ -251,7 +252,7 @@ export const api = {
       {
         method: "POST",
         auth: true,
-      }
+      },
     );
   },
 
@@ -260,5 +261,53 @@ export const api = {
       method: "POST",
       auth: true,
     });
+  },
+
+  getFlashcards: async () => {
+    return http<FlashcardsResponse>("/flashcards", {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  getFlashcard: async (flashcardId: string) => {
+    return http<Flashcard>(`/flashcards/${flashcardId}`, {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  deleteFlashcard: async (flashcardId: string) => {
+    return http<void>(`/flashcards/${flashcardId}`, {
+      method: "DELETE",
+      auth: true,
+    });
+  },
+
+  exportFlashcardsCsv: async () => {
+    const token = getToken();
+
+    const response = await fetch(`${API_URL}/flashcards/export/csv`, {
+      method: "GET",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (response.status === 401) {
+      clearAuth();
+
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      throw new Error(`Could not export CSV. Status ${response.status}`);
+    }
+
+    return response.blob();
   },
 };

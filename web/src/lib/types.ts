@@ -143,3 +143,7 @@ export type Quiz = {
   created_at: string;
   questions?: QuizQuestion[];
 };
+
+export type FlashcardsResponse = {
+  flashcards: Flashcard[];
+};

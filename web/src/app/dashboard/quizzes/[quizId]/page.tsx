@@ -106,7 +106,7 @@ export default function QuizDetailPage() {
       latestAttempt.answers.map((answer) => [
         answer.question_id,
         answer.correct_answer,
-      ])
+      ]),
     );
   }, [latestAttempt]);
 
@@ -117,7 +117,7 @@ export default function QuizDetailPage() {
       latestAttempt.answers.map((answer) => [
         answer.question_id,
         answer.selected_answer,
-      ])
+      ]),
     );
   }, [latestAttempt]);
 
@@ -156,7 +156,9 @@ export default function QuizDetailPage() {
       setLatestAttempt(response);
       setAttempts((current) => [response, ...current]);
 
-      toast.success(`Quiz submitted. Score: ${formatPercent(response.percentage)}`);
+      toast.success(
+        `Quiz submitted. Score: ${formatPercent(response.percentage)}`,
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not submit attempt.";
@@ -219,7 +221,7 @@ export default function QuizDetailPage() {
             {quiz.title}
           </h1>
 
-          <p className="mt-2 text-slate-500">
+          <p className="mt-2 text-slate-700">
             {questions.length} question{questions.length === 1 ? "" : "s"}.
             Answer all questions and submit your attempt.
           </p>
@@ -276,26 +278,30 @@ export default function QuizDetailPage() {
           {questions.length ? (
             questions.map((question, index) => {
               const selectedAnswer = selectedAnswers[question.id];
-              const correctAnswer =
-                latestAttemptAnswersByQuestionId.get(question.id);
-              const latestSelected =
-                latestAttemptSelectedByQuestionId.get(question.id);
+              const correctAnswer = latestAttemptAnswersByQuestionId.get(
+                question.id,
+              );
+              const latestSelected = latestAttemptSelectedByQuestionId.get(
+                question.id,
+              );
 
               return (
                 <Card key={question.id}>
                   <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
                       <div className="mb-3 flex items-center gap-2">
-                        <Badge variant={getDifficultyVariant(question.difficulty)}>
+                        <Badge
+                          variant={getDifficultyVariant(question.difficulty)}
+                        >
                           {question.difficulty}
                         </Badge>
 
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs font-medium text-slate-600">
                           Question {index + 1}
                         </span>
                       </div>
 
-                      <h2 className="text-lg font-semibold leading-7 text-slate-950">
+                      <h2 className="text-lg font-bold leading-7 text-slate-950">
                         {question.question}
                       </h2>
                     </div>
@@ -314,24 +320,24 @@ export default function QuizDetailPage() {
                           type="button"
                           onClick={() => selectAnswer(question.id, letter)}
                           className={cn(
-                            "flex w-full items-start gap-3 rounded-2xl border p-4 text-left text-sm transition",
+                            "flex w-full items-start gap-3 rounded-2xl border p-4 text-left text-sm font-medium transition",
                             !latestAttempt &&
                               isSelected &&
-                              "border-indigo-300 bg-indigo-50 text-indigo-900",
+                              "border-indigo-500 bg-indigo-50 text-slate-950 shadow-sm ring-2 ring-indigo-100",
                             !latestAttempt &&
                               !isSelected &&
-                              "border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50",
+                              "border-slate-300 bg-white text-slate-900 hover:border-indigo-400 hover:bg-indigo-50 hover:text-slate-950",
                             latestAttempt &&
                               isCorrect &&
-                              "border-emerald-300 bg-emerald-50 text-emerald-900",
+                              "border-emerald-500 bg-emerald-50 text-slate-950",
                             latestAttempt &&
                               wasSelected &&
                               !isCorrect &&
-                              "border-red-300 bg-red-50 text-red-900",
+                              "border-red-500 bg-red-50 text-slate-950",
                             latestAttempt &&
                               !wasSelected &&
                               !isCorrect &&
-                              "border-slate-200 bg-white text-slate-600"
+                              "border-slate-300 bg-white text-slate-800",
                           )}
                         >
                           <span
@@ -346,13 +352,13 @@ export default function QuizDetailPage() {
                               latestAttempt &&
                                 wasSelected &&
                                 !isCorrect &&
-                                "border-red-600 bg-red-600 text-white"
+                                "border-red-600 bg-red-600 text-white",
                             )}
                           >
                             {letter}
                           </span>
 
-                          <span className="flex-1">{option}</span>
+                          <span className="flex-1 leading-6 text-inherit">{option}</span>
 
                           {latestAttempt && isCorrect && (
                             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -425,7 +431,7 @@ export default function QuizDetailPage() {
           )}
         </div>
 
-        <aside className="space-y-6">
+        <aside className="space-y-6 xl:sticky xl:top-28 xl:self-start">
           <Card>
             <h2 className="text-lg font-semibold text-slate-950">
               Attempt progress
@@ -433,7 +439,7 @@ export default function QuizDetailPage() {
 
             <div className="mt-5">
               <div className="mb-2 flex justify-between text-sm">
-                <span className="text-slate-500">Answered</span>
+                <span className="font-medium text-slate-700">Answered</span>
                 <span className="font-medium text-slate-900">
                   {answeredCount}/{questions.length}
                 </span>
@@ -457,7 +463,7 @@ export default function QuizDetailPage() {
               Attempt history
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-700">
               Previous results for this quiz.
             </p>
 
@@ -474,7 +480,7 @@ export default function QuizDetailPage() {
                           {formatPercent(attempt.percentage)}
                         </p>
 
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-700">
                           {attempt.score}/{attempt.total_questions} correct
                         </p>
                       </div>
@@ -488,7 +494,7 @@ export default function QuizDetailPage() {
                       </Badge>
                     </div>
 
-                    <p className="mt-3 text-xs text-slate-400">
+                    <p className="mt-3 text-xs text-slate-500">
                       {formatDate(attempt.created_at)}
                     </p>
                   </div>

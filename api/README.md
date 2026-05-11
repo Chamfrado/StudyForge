@@ -1,7 +1,8 @@
 # StudyForge API
 
-StudyForge API is an AI-powered study backend built with FastAPI, PostgreSQL,
-SQLAlchemy, Alembic, JWT authentication, and OpenAI-compatible LLM providers.
+StudyForge is an AI-powered study app with a FastAPI backend, Next.js frontend,
+PostgreSQL, SQLAlchemy, Alembic, JWT authentication, and OpenAI-compatible LLM
+providers.
 
 It lets users create subjects, upload study materials, generate summaries,
 flashcards, and quizzes from those materials, track quiz attempts, and inspect
@@ -33,7 +34,7 @@ learning analytics.
 - AI-generated multiple-choice quizzes
 - Quiz attempt scoring and attempt history
 - Overview and per-subject analytics
-- Dockerized API and PostgreSQL database
+- Dockerized web app, API, and PostgreSQL database
 - Alembic migrations executed automatically in Docker
 - Groq/OpenAI-compatible AI provider support
 - Mock AI provider for local development without an API key
@@ -55,26 +56,17 @@ learning analytics.
 
 ```text
 .
-|-- alembic/                  # Database migrations
-|-- app/
-|   |-- core/                 # Config, database, security helpers
-|   |-- modules/
-|   |   |-- ai/               # AI provider, prompts, generation service
-|   |   |-- analytics/        # Learning analytics endpoints
-|   |   |-- auth/             # Registration, login, current user
-|   |   |-- flashcards/       # Flashcard listing, deletion, CSV export
-|   |   |-- materials/        # File upload and material storage
-|   |   |-- quizzes/          # Quizzes and attempts
-|   |   |-- subjects/         # Subject CRUD
-|   |   |-- summaries/        # Summary model/schema
-|   |   `-- users/            # User model/schema
-|   `-- main.py               # FastAPI app entrypoint
-|-- storage/                  # Uploaded material files, mounted in Docker
-|-- docker-compose.yml        # API + PostgreSQL services
-|-- docker-entrypoint.sh      # Runs migrations, then starts the API
-|-- dockerfile                # API image
-|-- pyproject.toml            # Python package and dependencies
-`-- README.md
+|-- api/
+|   |-- alembic/              # Database migrations
+|   |-- app/                  # FastAPI app
+|   |-- storage/              # Uploaded material files, mounted in Docker
+|   |-- docker-compose.yml    # Alternate compose entrypoint from api/
+|   |-- pyproject.toml        # Python package and dependencies
+|   `-- README.md
+|-- web/                      # Next.js app
+|-- Dockerfile                # Combined web + API app image
+|-- docker-compose.yml        # App + PostgreSQL services
+`-- docker-entrypoint.sh      # Runs migrations, then starts API and web
 ```
 
 ## Environment Variables
@@ -98,6 +90,7 @@ Available settings:
 | `APP_NAME` | No | `StudyForge API` | Name shown in health responses and OpenAPI docs. |
 | `APP_ENV` | No | `development` | Runtime environment label. |
 | `APP_DEBUG` | No | `true` | Enables SQLAlchemy debug logging when true. |
+| `CORS_ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated browser origins allowed to call the API. |
 | `DATABASE_URL` | Yes | `postgresql+asyncpg://studyforge:studyforge@localhost:5433/studyforge` | Async database URL used by the API. |
 | `JWT_SECRET_KEY` | Yes | `change-me-in-production` | Secret used to sign JWT access tokens. Replace in production. |
 | `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm. |
@@ -109,10 +102,11 @@ Available settings:
 
 ## Run with Docker
 
-Docker is the recommended setup because it starts both the API and PostgreSQL
-with the correct networking.
+Docker is the recommended setup because one app container starts both the
+Next.js web app and FastAPI, with PostgreSQL provided by Compose. The public app
+port is `3000`; API requests are proxied through the web app at `/api/*`.
 
-1. Create `.env`:
+1. From the `api/` directory, create `.env`:
 
 ```bash
 cp .env.example .env
@@ -136,24 +130,43 @@ OPENAI_COMPATIBLE_BASE_URL=https://api.groq.com/openai/v1
 OPENAI_COMPATIBLE_MODEL=openai/gpt-oss-20b
 ```
 
-3. Start the stack:
+3. From the repository root, start the development stack:
 
 ```bash
 docker compose up --build
 ```
 
-4. Open the API:
+After the first build, use this for the normal development loop:
 
-- API base URL: `http://localhost:8000`
-- Health check: `http://localhost:8000/health`
-- Swagger docs: `http://localhost:8000/docs`
-- ReDoc docs: `http://localhost:8000/redoc`
+```bash
+docker compose up
+```
 
-The API container runs:
+The app container runs both servers with file watching enabled, so edits under
+`api/` and `web/` are picked up without running separate API or frontend
+commands.
+
+4. Open the app:
+
+- Web app: `http://localhost:3000`
+- API proxy base URL: `http://localhost:3000/api`
+- Direct API base URL: `http://localhost:8000`
+- Health check: `http://localhost:3000/api/health`
+- Swagger docs: `http://localhost:3000/api/docs`
+- ReDoc docs: `http://localhost:3000/api/redoc`
+
+The Docker default for the frontend is:
+
+```env
+NEXT_PUBLIC_API_URL=/api
+```
+
+In development, the app container runs:
 
 ```bash
 python -m alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 
 PostgreSQL runs inside Docker on port `5432`, and is exposed to your host on
@@ -163,7 +176,7 @@ Useful Docker commands:
 
 ```bash
 docker compose ps
-docker compose logs -f api
+docker compose logs -f app
 docker compose logs -f postgres
 docker compose down
 docker compose down -v
@@ -526,13 +539,13 @@ port `5433`, so use:
 DATABASE_URL=postgresql+asyncpg://studyforge:studyforge@localhost:5433/studyforge
 ```
 
-Inside Docker Compose, the API uses the internal service name:
+Inside Docker Compose, the app container uses the internal service name:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://studyforge:studyforge@postgres:5432/studyforge
 ```
 
-The Compose file already injects the Docker-internal value for the API service.
+The Compose file already injects the Docker-internal value for the app service.
 
 ### Upload returns `Only .txt and .md files are supported`
 
@@ -541,14 +554,14 @@ Files must be UTF-8 encoded and cannot be empty.
 
 ### Port already in use
 
-If `8000` is already used, change the API port mapping in `docker-compose.yml`:
+If `3000` is already used, change the app port mapping in `docker-compose.yml`:
 
 ```yaml
 ports:
-  - "8001:8000"
+  - "3001:3000"
 ```
 
-Then open `http://localhost:8001`.
+Then open `http://localhost:3001`.
 
 If `5433` is already used, change the PostgreSQL host port:
 

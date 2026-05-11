@@ -1,12 +1,12 @@
 services:
   app:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: dev
     restart: unless-stopped
     env_file:
-      - .env
+      - api/.env
     environment:
       APP_MODE: development
       DATABASE_URL: postgresql+asyncpg://studyforge:studyforge@postgres:5432/studyforge
@@ -15,9 +15,9 @@ services:
       - "3000:3000"
       - "8000:8000"
     volumes:
-      - .:/app/api
-      - ../web:/app/web
-      - ./storage:/app/api/storage
+      - ./api:/app/api
+      - ./web:/app/web
+      - ./api/storage:/app/api/storage
       - studyforge_web_node_modules:/app/web/node_modules
       - studyforge_web_next:/app/web/.next
     depends_on:

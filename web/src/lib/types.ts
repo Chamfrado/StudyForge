@@ -51,3 +51,26 @@ export type AnalyticsOverview = {
   best_quiz_score: number;
   latest_attempts: QuizAttemptSummary[];
 };
+
+export type Subject = {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SubjectsResponse = {
+  subjects: Subject[];
+};
+
+export type CreateSubjectRequest = {
+  name: string;
+  description: string;
+};
+
+export type UpdateSubjectRequest = {
+  name: string;
+  description: string;
+};

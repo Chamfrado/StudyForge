@@ -2,12 +2,15 @@ import { clearAuth, getToken, saveAuth } from "@/lib/auth";
 import type {
   AnalyticsOverview,
   ApiErrorResponse,
+  CreateSubjectRequest,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
+  Subject,
+  SubjectsResponse,
+  UpdateSubjectRequest,
 } from "@/lib/types";
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 type RequestOptions = RequestInit & {
@@ -55,6 +58,16 @@ async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
     throw new Error(errorMessage);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get("content-type");
+
+  if (!contentType?.includes("application/json")) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -89,6 +102,43 @@ export const api = {
   getAnalyticsOverview: async () => {
     return http<AnalyticsOverview>("/analytics/overview", {
       method: "GET",
+      auth: true,
+    });
+  },
+
+  getSubjects: async () => {
+    return http<SubjectsResponse>("/subjects", {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  getSubject: async (subjectId: string) => {
+    return http<Subject>(`/subjects/${subjectId}`, {
+      method: "GET",
+      auth: true,
+    });
+  },
+
+  createSubject: async (data: CreateSubjectRequest) => {
+    return http<Subject>("/subjects", {
+      method: "POST",
+      auth: true,
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateSubject: async (subjectId: string, data: UpdateSubjectRequest) => {
+    return http<Subject>(`/subjects/${subjectId}`, {
+      method: "PUT",
+      auth: true,
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteSubject: async (subjectId: string) => {
+    return http<void>(`/subjects/${subjectId}`, {
+      method: "DELETE",
       auth: true,
     });
   },

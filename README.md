@@ -5,6 +5,10 @@ a Next.js dashboard, PostgreSQL persistence, JWT authentication, and
 OpenAI-compatible LLM integrations to turn study materials into summaries,
 flashcards, quizzes, quiz attempts, and analytics.
 
+## Preview
+
+![StudyForge Demo](./docs/studyforge-demo.gif)
+
 The repository is split into two application projects:
 
 - `api/` - FastAPI backend, database models, migrations, auth, AI workflows,

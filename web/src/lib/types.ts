@@ -28,7 +28,7 @@ export type LoginResponse = {
 };
 
 export type ApiErrorResponse = {
-  detail?: string;
+  detail?: unknown;
   message?: string;
 };
 

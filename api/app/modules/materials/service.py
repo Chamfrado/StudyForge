@@ -40,6 +40,21 @@ class MaterialService:
                 detail="Subject not found.",
             )
 
+        normalized_title = title.strip()
+        existing_material = await self.db.scalar(
+            select(Material).where(
+                Material.user_id == current_user.id,
+                Material.subject_id == subject.id,
+                Material.title == normalized_title,
+            )
+        )
+
+        if existing_material is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A material with this title already exists in this subject.",
+            )
+
         original_filename = file.filename or "unnamed-file"
         file_extension = Path(original_filename).suffix.lower()
 
@@ -74,7 +89,7 @@ class MaterialService:
             id=material_id,
             user_id=current_user.id,
             subject_id=subject.id,
-            title=title,
+            title=normalized_title,
             file_type=file_extension.replace(".", ""),
             original_filename=original_filename,
             storage_path=str(storage_path),

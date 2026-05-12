@@ -31,6 +31,44 @@ type RequestOptions = RequestInit & {
   auth?: boolean;
 };
 
+function normalizeApiError(
+  errorData: ApiErrorResponse,
+  fallbackMessage: string,
+): string {
+  if (typeof errorData.detail === "string" && errorData.detail.trim()) {
+    return errorData.detail;
+  }
+
+  if (typeof errorData.message === "string" && errorData.message.trim()) {
+    return errorData.message;
+  }
+
+  if (Array.isArray(errorData.detail)) {
+    const messages = errorData.detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+
+        if (
+          item &&
+          typeof item === "object" &&
+          "msg" in item &&
+          typeof item.msg === "string"
+        ) {
+          return item.msg;
+        }
+
+        return null;
+      })
+      .filter(Boolean);
+
+    if (messages.length) {
+      return messages.join(" ");
+    }
+  }
+
+  return fallbackMessage;
+}
+
 async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { auth = true, headers, ...rest } = options;
 
@@ -45,7 +83,7 @@ async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
     },
   });
 
-  if (response.status === 401) {
+  if (auth && response.status === 401) {
     clearAuth();
 
     if (typeof window !== "undefined") {
@@ -56,17 +94,15 @@ async function http<T>(path: string, options: RequestOptions = {}): Promise<T> {
   }
 
   if (!response.ok) {
-    let errorMessage = "Something went wrong.";
+    const fallbackMessage = `Request failed with status ${response.status}`;
+    let errorMessage = fallbackMessage;
 
     try {
       const errorData = (await response.json()) as ApiErrorResponse;
 
-      errorMessage =
-        errorData.detail ||
-        errorData.message ||
-        `Request failed with status ${response.status}`;
+      errorMessage = normalizeApiError(errorData, fallbackMessage);
     } catch {
-      errorMessage = `Request failed with status ${response.status}`;
+      errorMessage = fallbackMessage;
     }
 
     throw new Error(errorMessage);
@@ -113,17 +149,15 @@ async function httpFormData<T>(
   }
 
   if (!response.ok) {
-    let errorMessage = "Something went wrong.";
+    const fallbackMessage = `Request failed with status ${response.status}`;
+    let errorMessage = fallbackMessage;
 
     try {
       const errorData = (await response.json()) as ApiErrorResponse;
 
-      errorMessage =
-        errorData.detail ||
-        errorData.message ||
-        `Request failed with status ${response.status}`;
+      errorMessage = normalizeApiError(errorData, fallbackMessage);
     } catch {
-      errorMessage = `Request failed with status ${response.status}`;
+      errorMessage = fallbackMessage;
     }
 
     throw new Error(errorMessage);

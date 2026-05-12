@@ -134,17 +134,40 @@ async def test_material_uploads_and_validation_errors(
     assert txt_material["file_type"] == "txt"
     assert txt_material["extracted_text"] == "Plain text material"
 
+    duplicate_title_response = await client.post(
+        "/materials/upload",
+        headers=user_a_headers,
+        data={"subject_id": subject["id"], "title": "Cell Notes"},
+        files={"file": ("duplicate.txt", b"Duplicate content", "text/plain")},
+    )
+    assert duplicate_title_response.status_code == 409
+    assert (
+        duplicate_title_response.json()["detail"]
+        == "A material with this title already exists in this subject."
+    )
+
     md_material = await api_helpers["upload_material"](
         user_a_headers,
         subject["id"],
         filename="notes.md",
         content=b"# Markdown material",
+        title="Markdown Notes",
     )
     assert md_material["file_type"] == "md"
 
     list_response = await client.get("/materials", headers=user_a_headers)
     assert list_response.status_code == 200
     assert len(list_response.json()["materials"]) == 2
+
+    other_subject = await api_helpers["create_subject"](user_a_headers, name="Chemistry")
+    same_title_other_subject = await api_helpers["upload_material"](
+        user_a_headers,
+        other_subject["id"],
+        filename="chemistry.txt",
+        content=b"Chemistry material",
+        title="Cell Notes",
+    )
+    assert same_title_other_subject["title"] == "Cell Notes"
 
     isolated_upload_response = await client.post(
         "/materials/upload",
